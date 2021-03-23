@@ -2,6 +2,8 @@ import rsa
 import hashlib
 import time
 
+# names: entente, consensum, ostraka, conchord
+
 (public, private) = rsa.newkeys(512)
 
 print ("pubkey=", public)
@@ -20,8 +22,12 @@ def getSHA256Hash (msg):
 def encryptMessageHash (msg, privateKey):
     return rsa.encrypt(getSHA256Hash(msg), privateKey)
 
-def verifyMessageHash (msg, msgHash, publicKey):
-    return getSHA256Hash(msg) == rsa.decrypt(msgHash, publicKey)
+def hashThenSignMessage (msg, privateKey):
+    h = rsa.compute_hash(msg, 'SHA-256')
+    return rsa.sign_hash(h, privateKey, 'SHA-256')
+
+def verifySign (msg, signature, publicKey):
+    return rsa.verify(msg, signature, publicKey)
 
 class publicWallet:
     def __init__ (self, publicKey):
@@ -30,21 +36,28 @@ class publicWallet:
 
 class wallet:
     def __init__ (self):
-        (self.pub, priv) = rsa.newkeys(512)
-        self.privkey = priv
-        self.pwallet = publicWallet(self.pub)
+        (pub, self.privkey) = rsa.newkeys(512)
+        self.pwallet = publicWallet(pub)
 
-    def sendTx (self, receieveKey, sendAmount):
-        msg = str(self.pwallet.pubkey) + " T " + str(receieveKey) + " : " + str(sendAmount) + " @ " + str(time.gmtime())
-        print(msg)
-        return rsa.sign(msg.encode('utf8'), self.privkey, 'SHA-512')
+    def sendTx (self, receiever, amount):
+        msg = ("send", self.pwallet.pubkey, receiever, amount, time.gmtime())
+        # print(msg)
+        return (msg, hashThenSignMessage(str(msg).encode('utf8'), self.privkey))
 
-    def verifyTx (self, Transaction):
-        print(Transaction)
+    def verifyTx (self, transaction):
+        (msg, signature) = transaction
+        op, pub, *rest = msg
+        return verifySign(str(msg).encode('utf8'), signature, pub)
+
+# class Block:
+    
+        
 
 
 myWallet = wallet()
 Tx = myWallet.sendTx(public, 10)
 print (Tx)
+
+print (myWallet.verifyTx(Tx))
 
 

@@ -4,30 +4,6 @@ import time
 
 # names: entente, consensum, ostraka, conchord
 
-(public, private) = rsa.newkeys(512)
-
-print ("pubkey=", public)
-print ("privkey=", private)
-
-message = 'hello Bob!'.encode('utf8')
-bobh = rsa.compute_hash(message, 'SHA-256')
-bobsignature = rsa.sign_hash(bobh, private, 'SHA-256')
-print(rsa.verify(message, bobsignature, public))
-
-print("my signature=", bobsignature)
-
-crypto = rsa.encrypt(message, public)
-message = rsa.decrypt(crypto, private)
-print(message.decode('utf8'))
-
-def getSHA256Hash (msg):
-    m = hashlib.sha256()
-    m.update(msg.encode('utf8'))
-    return m.digest()
-
-def encryptMessageHash (msg, privateKey):
-    return rsa.encrypt(getSHA256Hash(msg), privateKey)
-
 def hashThenSignMessage (msg, privateKey):
     h = rsa.compute_hash(msg, 'SHA-256')
     return rsa.sign_hash(h, privateKey, 'SHA-256')
@@ -50,6 +26,9 @@ class wallet:
         # print(msg)
         return (msg, hashThenSignMessage(str(msg).encode('utf8'), self.privkey))
 
+    def makeBlock (self, msg):
+        return Block(msg)
+
     def verifyTx (self, transaction):
         (msg, signature) = transaction
         op, pub, *rest = msg
@@ -59,25 +38,45 @@ class wallet:
             return False
         return True
 
-class Block:
-    def __init__ (self, prevBlock, msg, signature, index):
-        self.prevHash = prevBlock.getHash()
-        self.msg = msg
-        self.signature = signature
-        self.index = index
+    def getPublicKey (self):
+        return self.pwallet.pubkey
 
-    def getHash ():
-        info = (self.prevHash, str(self.msg).encode('utf8'), self.signature, self.index)
+class Block:
+    def __init__ (self, msg=""):
+        self.prevHash = bytes()
+        self.msg = msg # signature in msg
+        self.index = 0
+
+    def getHash (self):
+        info = (self.prevHash, str(self.msg).encode('utf8'), self.index)
         return rsa.compute_hash(str(info).encode('utf8'), 'SHA-256')
 
-# class BlockChain:
-        
+    def __str__ (self):
+        return str((self.index, self.msg, self.prevHash))
 
+class BlockChain:
+    def __init__ (self):
+        self.chain = [Block()]
 
+    def __len__ (self):
+        return len(self.chain)
+    
+    def addBlock (self, newBlock):
+        newBlock.prevHash = self.chain[len(self)-1].getHash()
+        newBlock.index = len(self)
+        self.chain.append(newBlock)
+
+    def __str__ (self):
+        s = ""
+        for block in self.chain:
+            s += str(block) + "\n"
+        return s
+
+wallets = [wallet(), wallet(), wallet()]
 myWallet = wallet()
-Tx = myWallet.sendTx(public, 10)
-print (Tx)
+bc = BlockChain()
 
-print (myWallet.verifyTx(Tx))
-
-
+bc.addBlock(myWallet.makeBlock(myWallet.sendTx(wallets[0].getPublicKey(), 10)))
+bc.addBlock(myWallet.makeBlock(myWallet.sendTx(wallets[1].getPublicKey(), 100)))
+bc.addBlock(myWallet.makeBlock(myWallet.sendTx(wallets[0].getPublicKey(), 50)))
+print("bc=", bc)

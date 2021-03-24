@@ -10,6 +10,12 @@ print ("pubkey=", public)
 print ("privkey=", private)
 
 message = 'hello Bob!'.encode('utf8')
+bobh = rsa.compute_hash(message, 'SHA-256')
+bobsignature = rsa.sign_hash(bobh, private, 'SHA-256')
+print(rsa.verify(message, bobsignature, public))
+
+print("my signature=", bobsignature)
+
 crypto = rsa.encrypt(message, public)
 message = rsa.decrypt(crypto, private)
 print(message.decode('utf8'))
@@ -26,7 +32,7 @@ def hashThenSignMessage (msg, privateKey):
     h = rsa.compute_hash(msg, 'SHA-256')
     return rsa.sign_hash(h, privateKey, 'SHA-256')
 
-def verifySign (msg, signature, publicKey):
+def verifySignature (msg, signature, publicKey):
     return rsa.verify(msg, signature, publicKey)
 
 class publicWallet:
@@ -40,17 +46,31 @@ class wallet:
         self.pwallet = publicWallet(pub)
 
     def sendTx (self, receiever, amount):
-        msg = ("send", self.pwallet.pubkey, receiever, amount, time.gmtime())
+        msg = ("send", self.pwallet.pubkey, time.gmtime(), receiever, amount)
         # print(msg)
         return (msg, hashThenSignMessage(str(msg).encode('utf8'), self.privkey))
 
     def verifyTx (self, transaction):
         (msg, signature) = transaction
         op, pub, *rest = msg
-        return verifySign(str(msg).encode('utf8'), signature, pub)
+        try:
+            verifySignature(str(msg).encode('utf8'), signature, pub)
+        except:
+            return False
+        return True
 
-# class Block:
-    
+class Block:
+    def __init__ (self, prevBlock, msg, signature, index):
+        self.prevHash = prevBlock.getHash()
+        self.msg = msg
+        self.signature = signature
+        self.index = index
+
+    def getHash ():
+        info = (self.prevHash, str(self.msg).encode('utf8'), self.signature, self.index)
+        return rsa.compute_hash(str(info).encode('utf8'), 'SHA-256')
+
+# class BlockChain:
         
 
 

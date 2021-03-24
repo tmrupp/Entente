@@ -11,15 +11,15 @@ def hashThenSignMessage (msg, privateKey):
 def verifySignature (msg, signature, publicKey):
     return rsa.verify(msg, signature, publicKey)
 
-class publicWallet:
+class PublicWallet:
     def __init__ (self, publicKey):
         self.pubkey = publicKey
         self.value = 0
 
-class wallet:
+class Wallet:
     def __init__ (self):
         (pub, self.privkey) = rsa.newkeys(512)
-        self.pwallet = publicWallet(pub)
+        self.pwallet = PublicWallet(pub)
 
     def sendTx (self, receiever, amount):
         msg = ("send", self.pwallet.pubkey, time.gmtime(), receiever, amount)
@@ -42,7 +42,7 @@ class wallet:
         return self.pwallet.pubkey
 
 class Block:
-    def __init__ (self, msg=""):
+    def __init__ (self, msg="let's fucking go"):
         self.prevHash = bytes()
         self.msg = msg # signature in msg
         self.index = 0
@@ -72,8 +72,8 @@ class BlockChain:
             s += str(block) + "\n"
         return s
 
-wallets = [wallet(), wallet(), wallet()]
-myWallet = wallet()
+wallets = [Wallet(), Wallet(), Wallet()]
+myWallet = Wallet()
 bc = BlockChain()
 
 bc.addBlock(myWallet.makeBlock(myWallet.sendTx(wallets[0].getPublicKey(), 10)))

@@ -1,6 +1,8 @@
 import rsa
 import hashlib
 import time
+import os
+from Crypto.Cipher import AES
 
 # names: entente, consensum, ostraka, conchord
 
@@ -8,24 +10,59 @@ import time
 #   (op, sender, time, ...)
 # COMMANDS
 # actions/proposals/calls/resolutions (has a cost)
-# responses/votes (free, validates and gives voter reward)
+# responses/votes (free, validates and gives voter reward) Everything else burns?
 # add voters 
 #   (..., new original voters, encrypted anonymized list of public-private pairs)
 #   (must re-anonymize all voters) via an new encrypted public-private pair, possible ways:
 #       1. blockchain itself reissues a list of encrypted pairs (this could be cracked?)
 #       2. anonymization acts as a response (how to submit new list of valid voters?) 
-# remove voters (this requires some shit, maybe a roll call)
+# remove voters (remove by original key)
+#   remove single address requires unanimity besides removee
+#   remove group (presumably stale, lost, or compromised wallets/pots) requies no response from removees
 # message? (just a call with no effect?)
 # send (sends some token from a wallet to another wallet (pot??)) (acts like a call, i.e. has a cost)
 #   (..., reciever, amount)
 # dispute (dispute a vote, only happens when anonymous pub-priv keys are stolen by vote adder or by side channel)
-
+# found? (creates a new forum/boule)
 
 # SETTINGS
 # quorum (how many valid voters must vote)
 # timeout (how long can you vote on a thing)
 # consensus (what percentage of votes must be affirmative to pass)
 # cost? how expensive is it to propose/call
+
+# takes a message and returns an encrypted key and message encrypted by that key
+def AESEncryptWithRSAKey (msg, pub):
+    key = os.urandom(16) # generate a random key... hopefully is secure
+    cipher = AES.new(key, AES.MODE_EAX)
+    ciphertext, tag = cipher.encrypt_and_digest(msg)
+    encryptedKey = rsa.encrypt(key, pub)
+    return (encryptedKey, (ciphertext, cipher.nonce, tag))
+
+# decrypts a message based on a private key
+def AESDecryptWithRSAKey (msg, priv):
+    (encryptedKey, (ciphertext, nonce, tag)) = msg
+    key = rsa.decrypt(encryptedKey, priv)
+    cipher = AES.new(key, AES.MODE_EAX, nonce=nonce)
+    plaintext = cipher.decrypt(ciphertext)
+    try:
+        cipher.verify(tag)
+    except ValueError:
+        print("Key incorrect or message corrupted")
+    return plaintext
+
+# encrypts a new anon rsa key pair
+def encryptAnonPair (newpub, newpriv, pub):
+    encryptedPriv = AESEncryptWithRSAKey(newpriv.save_pkcs1(), pub)
+    encryptedPub = AESEncryptWithRSAKey(newpub.save_pkcs1(), pub)
+    return (encryptedPub, encryptedPriv)
+
+# decrypts an anon rsa key pair
+def decryptAnonPair (pair, priv):
+    (encryptedPub, encryptedPriv) = pair
+    newpub = rsa.PublicKey.load_pkcs1(AESDecryptWithRSAKey(encryptedPub, priv))
+    newpriv = rsa.PrivateKey.load_pkcs1(AESDecryptWithRSAKey(encryptedPriv, priv))
+    return (newpub, newpriv)
 
 def int_to_bytes(x: int) -> bytes:
     return x.to_bytes((x.bit_length() + 7) // 8, 'big')
@@ -50,6 +87,7 @@ def verifyTxSignature (transaction):
     return True
 
 def verifyTxTime (transaction, chain):
+    (msg, signature) = transaction
     op, sender, time, *rest = msg
     if (chain.getMostRecentTime() > time):
         return False
@@ -84,18 +122,10 @@ class Wallet:
         for v in allVoters:
             (newpub, newpriv) = rsa.newkeys(512)
             newAnonymousVoters.append(newpub)
-
-
-            # print("len=", len(int_to_bytes(newpub.n)))
-            # rsa.encrypt(int_to_bytes(newpub.e), v)
-            # rsa.encrypt(int_to_bytes(newpub.n), v)\
-
-            # AES Encrypt a key
-
-            # encryptedKeys = (rsa.encrypt(str(newpub).encode('utf8'), v), rsa.encrypt(str(newpriv).encode('utf8'), v))
-            # anonymousConversions[v.pubkey] = encryptedKeys
+            encryptedKeys = encryptAnonPair(newpub, newpriv, v)
+            anonymousConversions[v] = encryptedKeys
         
-        msg = ("add", self.pwallet.pubkey, time.gmtime(), newAnonymousVoters, anonymousConversions)
+        msg = ("add", self.pwallet.pubkey, time.gmtime(), newVoters, newAnonymousVoters, anonymousConversions)
         return self.signedMsg(msg)
 
     def makeBlock (self, msg):
@@ -131,7 +161,7 @@ class BlockChain:
         self.chain.append(newBlock)
 
     def getMostRecentTime (self):
-        return self.chain[len(self)-1].msg[2]
+        return self.chain[len(self)-1].msg[0][2]
 
     def __str__ (self):
         s = ""
@@ -139,18 +169,31 @@ class BlockChain:
             s += str(block) + "\n"
         return s
 
+# blocks have form:
+# (index, Tx, prevHash)
+#   Tx:
+#       (msg, signature)
+#           msg:
+#               (op, sender, time, ...)
+
 class Boule:
     def __init__ (self, initialTx):
         self.originalVoters = []
         self.anonymousVoters = []
-        self.wallets = {}
+        self.wallets = {} #make this into save_pkcs1
         self.chain = BlockChain(Block(initialTx))
         self.cost = 1
+        # nicknames?
 
     def verifySend (self, msg):
         (op, sender, time, receiever, amount) = msg
+
+        if (sender not in self.wallets.keys()):
+            return False
+
         if (self.wallets[sender].value < amount):
             return False
+
         return True
 
     def send (self, msg):
@@ -158,13 +201,22 @@ class Boule:
         self.wallets[sender] -= amount
         self.wallets[receiever] += amount
 
+    # would be veryified by consensus
     def verifyAddVoters (self, msg):
-        return 0
+        return True
         
-
+    # for now this always passes
     def addVoters (self, msg):
-        return 0
+        (op, sender, time, newVoters, newAnonymousVoters, anonymousConversions) = msg
+        self.originalVoters.append(newVoters)
+        self.anonymousVoters = newAnonymousVoters
+        for v in newVoters:
+            if (v in wallets):
+                self.wallets[v] += 1.0
+            else:
+                self.wallets[v] = 1.0
 
+        
     verifyOperations = {
         "send": verifySend,
         "add": verifyAddVoters
@@ -180,7 +232,7 @@ class Boule:
         if (not verifyTxSignature(transaction)):
             return False
 
-        if (not verifyTxTime(transaction, chain)):
+        if (not verifyTxTime(transaction, self.chain)):
             return False
         
         (msg, signature) = transaction
@@ -193,38 +245,28 @@ class Boule:
             chain.addBlock(Block(transaction))
 
     def processBlock (self, block):
-        op, pub, *rest = block.msg
-        self.operations[op](self, block.msg)
+        op, pub, *rest = block.msg[0]
+        # print ("in process block msg=", block.msg)
+        self.operations[op](self, block.msg[0])
 
     def processBlockChain (self):
-        return 0
+        for block in self.chain.chain:
+            self.processBlock(block)
 
-    def showAmounts ():
-        for w in wallets:
+    def showAmounts (self):
+        for w in self.wallets.items():
             print (w)
-
-
-
-
-        
-
-
-    def processBlock (self, block):
-        return 0
 
 
 wallets = [Wallet(), Wallet(), Wallet()]
 myWallet = Wallet()
 
-Tx = myWallet.addTx([myWallet.getPublicKey()], None)
+Tx = myWallet.addTx([myWallet.getPublicKey(), wallets[0].getPublicKey()], None)
 boule = Boule(Tx)
 
-print (Tx)
+boule.addTx(myWallet.sendTx(wallets[0].getPublicKey(), 0.3))
 
-# bc = BlockChain()
+boule.processBlockChain()
+boule.showAmounts()
 
-# bc.addBlock(myWallet.makeBlock(myWallet.sendTx(wallets[0].getPublicKey(), 10)))
-# bc.addBlock(myWallet.makeBlock(myWallet.sendTx(wallets[1].getPublicKey(), 100)))
-# bc.addBlock(myWallet.makeBlock(myWallet.sendTx(wallets[0].getPublicKey(), 50)))
-
-# print("bc=", bc)
+# print (Tx)

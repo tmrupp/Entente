@@ -27,6 +27,12 @@ import time
 # consensus (what percentage of votes must be affirmative to pass)
 # cost? how expensive is it to propose/call
 
+def int_to_bytes(x: int) -> bytes:
+    return x.to_bytes((x.bit_length() + 7) // 8, 'big')
+    
+def int_from_bytes(xbytes: bytes) -> int:
+    return int.from_bytes(xbytes, 'big')
+
 def hashThenSignMessage (msg, privateKey):
     h = rsa.compute_hash(msg, 'SHA-256')
     return rsa.sign_hash(h, privateKey, 'SHA-256')
@@ -78,8 +84,16 @@ class Wallet:
         for v in allVoters:
             (newpub, newpriv) = rsa.newkeys(512)
             newAnonymousVoters.append(newpub)
-            encryptedKeys = (rsa.encrypt(str(newpub).encode('utf8'), v), rsa.encrypt(str(newpriv).encode('utf8'), v))
-            anonymousConversions[v.pubkey] = encryptedKeys
+
+
+            # print("len=", len(int_to_bytes(newpub.n)))
+            # rsa.encrypt(int_to_bytes(newpub.e), v)
+            # rsa.encrypt(int_to_bytes(newpub.n), v)\
+
+            # AES Encrypt a key
+
+            # encryptedKeys = (rsa.encrypt(str(newpub).encode('utf8'), v), rsa.encrypt(str(newpriv).encode('utf8'), v))
+            # anonymousConversions[v.pubkey] = encryptedKeys
         
         msg = ("add", self.pwallet.pubkey, time.gmtime(), newAnonymousVoters, anonymousConversions)
         return self.signedMsg(msg)
@@ -207,10 +221,10 @@ boule = Boule(Tx)
 
 print (Tx)
 
-bc = BlockChain()
+# bc = BlockChain()
 
-bc.addBlock(myWallet.makeBlock(myWallet.sendTx(wallets[0].getPublicKey(), 10)))
-bc.addBlock(myWallet.makeBlock(myWallet.sendTx(wallets[1].getPublicKey(), 100)))
-bc.addBlock(myWallet.makeBlock(myWallet.sendTx(wallets[0].getPublicKey(), 50)))
+# bc.addBlock(myWallet.makeBlock(myWallet.sendTx(wallets[0].getPublicKey(), 10)))
+# bc.addBlock(myWallet.makeBlock(myWallet.sendTx(wallets[1].getPublicKey(), 100)))
+# bc.addBlock(myWallet.makeBlock(myWallet.sendTx(wallets[0].getPublicKey(), 50)))
 
-print("bc=", bc)
+# print("bc=", bc)

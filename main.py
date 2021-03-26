@@ -23,6 +23,8 @@ from Crypto.Cipher import AES
 # send (sends some token from a wallet to another wallet (pot??)) (acts like a call, i.e. has a cost)
 #   (..., reciever, amount)
 # dispute (dispute a vote, only happens when anonymous pub-priv keys are stolen by vote adder or by side channel)
+#   respond - prove that you have the original pub-priv key pair for a response
+#   add - prove that your pub key in the anon list doesn't correspond to a valid key pair
 # found? (creates a new forum/boule)
 
 # SETTINGS
@@ -30,6 +32,13 @@ from Crypto.Cipher import AES
 # timeout (how long can you vote on a thing)
 # consensus (what percentage of votes must be affirmative to pass)
 # cost? how expensive is it to propose/call
+
+# initial assumptions:
+# in order for a call to resolve all voters must respond
+# for a call to pass there must be unanimity 
+# response votes are anon
+
+# TODO: make the map op -> func to take a block not a block.msg
 
 # takes a message and returns an encrypted key and message encrypted by that key
 def AESEncryptWithRSAKey (msg, pub):
@@ -128,6 +137,18 @@ class Wallet:
         msg = ("add", self.pwallet.pubkey, time.gmtime(), newVoters, newAnonymousVoters, anonymousConversions)
         return self.signedMsg(msg)
 
+    # Y:yes N:no A:abstain
+    def respondTx (self, index, response):
+        msg = ("respond", self.getPublicKey(), time.gmtime(), response, index)
+        return self.signedMsg(msg)
+
+    # def getUnrespondedCalls (self, boule):
+
+    def getAnonKeys (self, boule):
+        # go through boule and find most recently passed add op
+        return 0
+
+
     def makeBlock (self, msg):
         return Block(msg)
 
@@ -184,16 +205,25 @@ class BlockChain:
 
 class Boule:
     def __init__ (self, initialTx):
-        self.originalVoters = []
-        self.anonymousVoters = []
-        self.wallets = {} #make this into save_pkcs1
-        self.chain = BlockChain()
+        self.restart()
         self.cost = 1
         # nicknames?
         self.addAndProcessTx(initialTx)
 
+    def restart (self):
+        self.wallets = {} 
+        self.chain = BlockChain()
+        self.originalVoters = []
+        self.anonymousVoters = []
+
+    def sendToWallet (self, receiver, amount):
+        if receiver in self.wallets.keys():
+            self.wallets[receiver] += amount
+        else:
+            self.wallets[receiver] = amount
+
     def verifySend (self, msg):
-        (op, sender, time, receiever, amount) = msg
+        (op, sender, time, receiver, amount) = msg
 
         if (sender not in self.wallets.keys()):
             return False
@@ -203,38 +233,63 @@ class Boule:
 
         return True
 
-    def send (self, msg):
+    def send (self, block):
+        msg = block.msg[0]
         (op, sender, time, receiever, amount) = msg
         self.wallets[sender] -= amount
-        if receiever in self.wallets.keys():
-            self.wallets[receiever] += amount
-        else:
-            self.wallets[receiever] = amount
+        self.sendToWallet(receiever, amount)
 
-    # would be veryified by consensus
+    # would be veryified by consensus, time, and 
     def verifyAddVoters (self, msg):
+        op, sender, *rest = msg
         return True
         
     # for now this always passes
-    def addVoters (self, msg):
-        (op, sender, time, newVoters, newAnonymousVoters, anonymousConversions) = msg
-        self.originalVoters.append(newVoters)
-        self.anonymousVoters = newAnonymousVoters
-        for v in newVoters:
-            if (v in wallets):
-                self.wallets[v] += 1.0
-            else:
-                self.wallets[v] = 1.0
+    def addVoters (self, block):
+        if (self.callIsPassed(block.index)):
+            msg = block.msg[0]
+            (op, sender, time, newVoters, newAnonymousVoters, anonymousConversions) = msg
+            self.originalVoters.append(newVoters)
+            self.anonymousVoters = newAnonymousVoters
+            for v in newVoters:
+                self.sendToWallet(v, 1.0)
+
+    # make sure you haven't already responded to this
+    # make sure you're a valid responder (anon or no)
+    def verifyRespond (self, msg):
+        (op, sender, time, response, index) = msg
+        for i in range(index, len(self.chain.chain)):
+            block = self.chain.chain[i]
+            (msg, signature) = block.msg
+            checkIndex = block.index
+            checkOp, checkSender, *rest = msg
+            if (checkOp == "respond"):
+                if (sender == checkSender and index == checkIndex):
+                    return False
+        
+        if (sender not in self.getLastPassedAnonList(self.chain.getTopBlock().index)):
+            return False
+
+        return True
+
+    def respond (self, block):
+        # do nothing, besides depositing reward
+        # magic happens in "post"
+        msg = block.msg[0]
+        op, sender, *rest = msg
+        self.sendToWallet(sender, 1.0)
 
         
     verifyOperations = {
         "send": verifySend,
-        "add": verifyAddVoters
+        "add": verifyAddVoters,
+        "respond": verifyRespond
     }
 
     operations = {
         "send": send,
-        "add": addVoters
+        "add": addVoters,
+        "respond": respond
     }
 
     def validateTx (self, transaction):
@@ -254,7 +309,8 @@ class Boule:
         if (self.validateTx(transaction)):
             self.chain.addBlock(Block(transaction))
             return True
-        return False
+        else:
+            return False
 
     def addAndProcessTx (self, transaction):
         if (self.addTx(transaction)):
@@ -263,9 +319,10 @@ class Boule:
     def processBlock (self, block):
         op, pub, *rest = block.msg[0]
         # print ("in process block msg=", block.msg)
-        self.operations[op](self, block.msg[0])
+        self.operations[op](self, block)
 
     def processBlockChain (self):
+        self.restart()
         for block in self.chain.chain:
             self.processBlock(block)
 
@@ -273,6 +330,52 @@ class Boule:
         for w in self.wallets.items():
             print (w)
 
+    # gets the most recently passed re-anonimization
+    # don't check past this to see if passed later...
+    def getLastPassedAnonList (self, index):
+        for i in range(index-1, 0):
+            block = self.chain.chain[i]
+            msg = block.msg[0]
+            op, *rest = msg
+            if (op == "add" and self.callIsPassed(i, index)):
+                (op, sender, time, newVoters, newAnonymousVoters, anonymousConversions) = msg
+                return newAnonymousVoters
+        return []
+
+    def callIsPassed (self, index, indexLimit=-1):
+        if (index <= 0):
+            return True
+
+        if (indexLimit == -1):
+            indexLimit = len(self.chain.chain)
+
+        anonVoters = self.getLastPassedAnonList(index)
+
+        # go through the chain and look at all responses to this call
+        for i in range(index, indexLimit):
+            
+            # empty means passed by default, but look through all voters
+            # account for disputes later...
+            if (not anonVoters):
+                return True
+
+            block = self.chain.chain[i]
+            msg = block.msg[0]
+            op, *rest = msg
+            # is a response
+            if (op == "respond"):
+                op, voter, time, response, checkIndex = msg
+                # is a response to this call
+                if (checkIndex == index):
+                    # responder voted yes
+                    if (response != "N"):
+                        anonVoters.remove(voter)
+                    else:
+                        # not unanimously agreed upon!
+                        return False
+        
+        # not everyone has responded yet
+        return False
 
 wallets = [Wallet(), Wallet(), Wallet()]
 myWallet = Wallet()
@@ -280,10 +383,12 @@ myWallet = Wallet()
 Tx = myWallet.addTx([myWallet.getPublicKey(), wallets[0].getPublicKey()], None)
 boule = Boule(Tx)
 
-
 boule.addAndProcessTx(myWallet.sendTx(wallets[0].getPublicKey(), 0.3))
 boule.addAndProcessTx(wallets[0].sendTx(wallets[1].getPublicKey(), 0.1))
+boule.addAndProcessTx(myWallet.respondTx(0, 'Y'))
 
 boule.showAmounts()
+print("***boule***\n\n", boule.chain)
+
 
 # print (Tx)

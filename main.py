@@ -89,7 +89,7 @@ def verifyTxSignature (transaction):
 def verifyTxTime (transaction, chain):
     (msg, signature) = transaction
     op, sender, time, *rest = msg
-    if (chain.getMostRecentTime() > time):
+    if (len(chain) != 0 and chain.getTopTime() > time):
         return False
     return True
 
@@ -148,20 +148,26 @@ class Block:
         return str((self.index, self.msg, self.prevHash))
 
 class BlockChain:
-    def __init__ (self, block):
-        self.chain = [block]
+    def __init__ (self):
+        self.chain = []
 
     def __len__ (self):
         return len(self.chain)
     
     def addBlock (self, newBlock):
-        newBlock.prevHash = self.chain[len(self)-1].getHash()
+        if (len(self.chain) > 0):
+            newBlock.prevHash = self.getTopBlock().getHash()
+        else:
+            newBlock.prevHash = bytes([0x0])
         newBlock.index = len(self)
         # if (verifyTx(newBlock.msg)):
         self.chain.append(newBlock)
 
-    def getMostRecentTime (self):
-        return self.chain[len(self)-1].msg[0][2]
+    def getTopTime (self):
+        return self.getTopBlock().msg[0][2]
+
+    def getTopBlock (self):
+        return self.chain[len(self)-1]
 
     def __str__ (self):
         s = ""
@@ -181,9 +187,10 @@ class Boule:
         self.originalVoters = []
         self.anonymousVoters = []
         self.wallets = {} #make this into save_pkcs1
-        self.chain = BlockChain(Block(initialTx))
+        self.chain = BlockChain()
         self.cost = 1
         # nicknames?
+        self.addAndProcessTx(initialTx)
 
     def verifySend (self, msg):
         (op, sender, time, receiever, amount) = msg
@@ -191,7 +198,7 @@ class Boule:
         if (sender not in self.wallets.keys()):
             return False
 
-        if (self.wallets[sender].value < amount):
+        if (self.wallets[sender] < amount):
             return False
 
         return True
@@ -199,7 +206,10 @@ class Boule:
     def send (self, msg):
         (op, sender, time, receiever, amount) = msg
         self.wallets[sender] -= amount
-        self.wallets[receiever] += amount
+        if receiever in self.wallets.keys():
+            self.wallets[receiever] += amount
+        else:
+            self.wallets[receiever] = amount
 
     # would be veryified by consensus
     def verifyAddVoters (self, msg):
@@ -242,7 +252,13 @@ class Boule:
     # recieve a transaction, add to blockchain
     def addTx (self, transaction):
         if (self.validateTx(transaction)):
-            chain.addBlock(Block(transaction))
+            self.chain.addBlock(Block(transaction))
+            return True
+        return False
+
+    def addAndProcessTx (self, transaction):
+        if (self.addTx(transaction)):
+            self.processBlock(self.chain.getTopBlock())
 
     def processBlock (self, block):
         op, pub, *rest = block.msg[0]
@@ -264,9 +280,10 @@ myWallet = Wallet()
 Tx = myWallet.addTx([myWallet.getPublicKey(), wallets[0].getPublicKey()], None)
 boule = Boule(Tx)
 
-boule.addTx(myWallet.sendTx(wallets[0].getPublicKey(), 0.3))
 
-boule.processBlockChain()
+boule.addAndProcessTx(myWallet.sendTx(wallets[0].getPublicKey(), 0.3))
+boule.addAndProcessTx(wallets[0].sendTx(wallets[1].getPublicKey(), 0.1))
+
 boule.showAmounts()
 
 # print (Tx)

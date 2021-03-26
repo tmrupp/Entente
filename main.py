@@ -385,7 +385,8 @@ boule = Boule(Tx)
 
 boule.addAndProcessTx(myWallet.sendTx(wallets[0].getPublicKey(), 0.3))
 boule.addAndProcessTx(wallets[0].sendTx(wallets[1].getPublicKey(), 0.1))
-boule.addAndProcessTx(myWallet.respondTx(0, 'Y'))
+boule.addAndProcessTx(myWallet.respondTx(0, 'Y')) # invalid respond, not on the voter rolls *yet*
+
 
 boule.showAmounts()
 print("***boule***\n\n", boule.chain)

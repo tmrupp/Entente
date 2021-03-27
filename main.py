@@ -124,7 +124,8 @@ class Wallet:
         allVoters = newVoters
 
         if (boule is not None):
-            allVoters = boule.originalVoters.extend(newVoters)
+            # allVoters = boule.originalVoters.copy()
+            allVoters += boule.originalVoters
 
         newAnonymousVoters = []
         anonymousConversions = {}
@@ -146,8 +147,11 @@ class Wallet:
 
     def getAnonKeys (self, boule):
         # go through boule and find most recently passed add op
+        pub = self.getPublicKey()
+        if (pub in boule):
+            encryptedKeys = boule.anonymousConversions[pub]
+            return decryptAnonPair(encryptedKeys, self.privkey)
         return 0
-
 
     def makeBlock (self, msg):
         return Block(msg)
@@ -208,13 +212,14 @@ class Boule:
         self.restart()
         self.cost = 1
         # nicknames?
+        self.chain = BlockChain()
         self.addAndProcessTx(initialTx)
 
     def restart (self):
         self.wallets = {} 
-        self.chain = BlockChain()
         self.originalVoters = []
         self.anonymousVoters = []
+        self.anonymousConversions = {}
 
     def sendToWallet (self, receiver, amount):
         if receiver in self.wallets.keys():
@@ -244,18 +249,20 @@ class Boule:
         op, sender, *rest = msg
         return True
         
-    # for now this always passes
+    # passes if passes!
     def addVoters (self, block):
         if (self.callIsPassed(block.index)):
             msg = block.msg[0]
             (op, sender, time, newVoters, newAnonymousVoters, anonymousConversions) = msg
-            self.originalVoters.append(newVoters)
+            self.originalVoters.extend(newVoters)
             self.anonymousVoters = newAnonymousVoters
+            self.anonymousConversions = anonymousConversions
             for v in newVoters:
                 self.sendToWallet(v, 1.0)
 
     # make sure you haven't already responded to this
     # make sure you're a valid responder (anon or no)
+    # cannot respond to a response
     def verifyRespond (self, msg):
         (op, sender, time, response, index) = msg
         for i in range(index, len(self.chain.chain)):
@@ -266,6 +273,12 @@ class Boule:
             if (checkOp == "respond"):
                 if (sender == checkSender and index == checkIndex):
                     return False
+
+        block = self.chain.chain[index]
+        (msg, signature) = block.msg
+        checkOp, *rest = msg
+        if (checkOp == "respond"):
+            return False
         
         if (sender not in self.getLastPassedAnonList(self.chain.getTopBlock().index)):
             return False
@@ -278,7 +291,9 @@ class Boule:
         msg = block.msg[0]
         op, sender, *rest = msg
         self.sendToWallet(sender, 1.0)
-
+        (op, sender, time, response, index) = msg
+        # try to process the call
+        self.processBlock(self.chain.chain[index])
         
     verifyOperations = {
         "send": verifySend,
@@ -386,6 +401,7 @@ boule = Boule(Tx)
 boule.addAndProcessTx(myWallet.sendTx(wallets[0].getPublicKey(), 0.3))
 boule.addAndProcessTx(wallets[0].sendTx(wallets[1].getPublicKey(), 0.1))
 boule.addAndProcessTx(myWallet.respondTx(0, 'Y'))
+boule.addAndProcessTx(myWallet.addTx([wallets[1].getPublicKey()], boule))
 
 boule.showAmounts()
 print("***boule***\n\n", boule.chain)

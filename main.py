@@ -38,8 +38,6 @@ from Crypto.Cipher import AES
 # for a call to pass there must be unanimity 
 # response votes are anon
 
-# TODO: make the map op -> func to take a block not a block.msg
-
 # takes a message and returns an encrypted key and message encrypted by that key
 def AESEncryptWithRSAKey (msg, pub):
     key = os.urandom(16) # generate a random key... hopefully is secure
@@ -160,17 +158,17 @@ class Wallet:
         return self.pwallet.pubkey
 
 class Block:
-    def __init__ (self, msg="let's fucking go"):
+    def __init__ (self, tx="let's fucking go"):
         self.prevHash = bytes()
-        self.msg = msg # signature in msg
+        self.tx = tx # signature in msg
         self.index = 0
 
     def getHash (self):
-        info = (self.prevHash, str(self.msg).encode('utf8'), self.index)
+        info = (self.prevHash, str(self.tx).encode('utf8'), self.index)
         return rsa.compute_hash(str(info).encode('utf8'), 'SHA-256')
 
     def __str__ (self):
-        return str((self.index, self.msg, self.prevHash))
+        return str((self.index, self.tx, self.prevHash))
 
 class BlockChain:
     def __init__ (self):
@@ -185,11 +183,10 @@ class BlockChain:
         else:
             newBlock.prevHash = bytes([0x0])
         newBlock.index = len(self)
-        # if (verifyTx(newBlock.msg)):
         self.chain.append(newBlock)
 
     def getTopTime (self):
-        return self.getTopBlock().msg[0][2]
+        return self.getTopBlock().tx[0][2]
 
     def getTopBlock (self):
         return self.chain[len(self)-1]
@@ -239,7 +236,7 @@ class Boule:
         return True
 
     def send (self, block):
-        msg = block.msg[0]
+        msg = block.tx[0]
         (op, sender, time, receiever, amount) = msg
         self.wallets[sender] -= amount
         self.sendToWallet(receiever, amount)
@@ -252,7 +249,7 @@ class Boule:
     # passes if passes!
     def addVoters (self, block):
         if (self.callIsPassed(block.index)):
-            msg = block.msg[0]
+            msg = block.tx[0]
             (op, sender, time, newVoters, newAnonymousVoters, anonymousConversions) = msg
             self.originalVoters.extend(newVoters)
             self.anonymousVoters = newAnonymousVoters
@@ -267,7 +264,7 @@ class Boule:
         (op, sender, time, response, index) = msg
         for i in range(index, len(self.chain.chain)):
             block = self.chain.chain[i]
-            (msg, signature) = block.msg
+            (msg, signature) = block.tx
             checkIndex = block.index
             checkOp, checkSender, *rest = msg
             if (checkOp == "respond"):
@@ -275,12 +272,12 @@ class Boule:
                     return False
 
         block = self.chain.chain[index]
-        (msg, signature) = block.msg
+        (msg, signature) = block.tx
         checkOp, *rest = msg
         if (checkOp == "respond"):
             return False
         
-        if (sender not in self.getLastPassedAnonList(self.chain.getTopBlock().index)):
+        if (sender not in self.getLastPassedAnonListAt(self.chain.getTopBlock().index)):
             return False
 
         return True
@@ -288,7 +285,7 @@ class Boule:
     def respond (self, block):
         # do nothing, besides depositing reward
         # magic happens in "post"
-        msg = block.msg[0]
+        msg = block.tx[0]
         op, sender, *rest = msg
         self.sendToWallet(sender, 1.0)
         (op, sender, time, response, index) = msg
@@ -332,8 +329,7 @@ class Boule:
             self.processBlock(self.chain.getTopBlock())
 
     def processBlock (self, block):
-        op, pub, *rest = block.msg[0]
-        # print ("in process block msg=", block.msg)
+        op, pub, *rest = block.tx[0]
         self.operations[op](self, block)
 
     def processBlockChain (self):
@@ -345,12 +341,15 @@ class Boule:
         for w in self.wallets.items():
             print (w)
 
+    def getLastPassedAnonList (self):
+        return 0
+
     # gets the most recently passed re-anonimization
     # don't check past this to see if passed later...
-    def getLastPassedAnonList (self, index):
+    def getLastPassedAnonListAt (self, index):
         for i in range(index-1, 0):
             block = self.chain.chain[i]
-            msg = block.msg[0]
+            msg = block.tx[0]
             op, *rest = msg
             if (op == "add" and self.callIsPassed(i, index)):
                 (op, sender, time, newVoters, newAnonymousVoters, anonymousConversions) = msg
@@ -364,7 +363,7 @@ class Boule:
         if (indexLimit == -1):
             indexLimit = len(self.chain.chain)
 
-        anonVoters = self.getLastPassedAnonList(index)
+        anonVoters = self.getLastPassedAnonListAt(index)
 
         # go through the chain and look at all responses to this call
         for i in range(index, indexLimit):
@@ -375,7 +374,7 @@ class Boule:
                 return True
 
             block = self.chain.chain[i]
-            msg = block.msg[0]
+            msg = block.tx[0]
             op, *rest = msg
             # is a response
             if (op == "respond"):

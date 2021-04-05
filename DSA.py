@@ -50,7 +50,7 @@ def sha (a):
 
 def DLProof (key):
     '''
-    knowledge of discrete log, using Fiat Shamir Heuristic i.e. noninteractive
+    knowledge of discrete log, using Fiat Shamir Heuristic i.e. noninteractive\n
     proof that given y = g^x, x is known
     '''
     x, q, p, g, y = decomposeKey(key)
@@ -68,7 +68,7 @@ def DLVerify (publicKey, proof, cin=None):
 
 def DLEqualityProof (keyA, keyB):
     '''
-    knowledge of the equality of two discrete logs
+    knowledge of the equality of two discrete logs\n
     log_ag(ay) == log_bg(by), ay & by are public keys, ag & bg are generators
     '''
     ax, q, p, ag, ay = decomposeKey(keyA)
@@ -97,9 +97,18 @@ def keyFromNewGenerator (key):
         ng = pow(h, (int(p)-1)//int(q), int(p))
 
     ny = pow(ng, int(x), int(p))
-    print ("ng=", ng, "ny=", ny, "ng^x=", pow(ng, int(x), int(p)))
-
     return DSA.construct((ny, ng, p, q, x))
+
+def ILMPP (aKeys, bKeys):
+    '''
+    Iterated Logarithmic Multiplication Proof Protocol\n
+    log_g(a_0)*...log_g(a_k) == log_g(b_0)*...log_g(b_k)
+    '''
+    _, q, p, g, _ = decomposeKey(aKeys[0])
+    k = len(aKeys)
+    assert(len(aKeys) == len(bKeys))
+    thetas = [Crypto.Random.random.randint(0, int(p)) for x in range(k-1)]
+    # print (len(thetas), " thetas=", thetas)
 
 
 myProof = DLProof(myKey)
@@ -107,6 +116,8 @@ print("verified?", DLVerify(myKey.publickey(), myProof))
 newKey = keyFromNewGenerator(myKey)
 myEqProof = DLEqualityProof(myKey, newKey)
 print("equality verified?", DLEqualityVerify(myKey.publickey(), newKey.publickey(), myEqProof))
+
+ILMPP([newKey]*10, [newKey]*10)
 
 
 

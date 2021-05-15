@@ -86,6 +86,9 @@ def DLEqualityVerify (publicKeyA, publicKeyB, proof):
     c = sha_crypto_ints([ag, ay, ta, bg, by, tb])
     return DLVerify(publicKeyA, (ta, r), c) and DLVerify(publicKeyB, (tb, r), c)
 
+
+# TODO: could be ng=g^a, ny=y^a???
+# do not reveal a...
 def keyFromNewGenerator (key):
     '''
     creates a new key with a new generator, with the same private key

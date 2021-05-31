@@ -2,6 +2,7 @@ from Crypto.PublicKey import ECC
 from Crypto.Signature import DSS
 from Crypto.Hash import SHA256
 from Crypto.Cipher import AES
+import time
 
 class Pot ():
     def __init__ (self):
@@ -15,8 +16,14 @@ class Pot ():
         h = SHA256.new(msg)
         return self.signer.sign(h)
 
+    def signedMsg (self, msg):
+        return (msg, self.sign(str(msg).encode('utf8')))
+
     def get_public_key (self):
-        return self.key.public_key()
+        return self.key.public_key().export_key(format='PEM')
+
+    def import_public_key (exported_key):
+        return ECC.import_key(exported_key)
 
     def verify_signature (pub: ECC.EccKey, msg, signature):
         h = SHA256.new(msg)
@@ -26,6 +33,20 @@ class Pot ():
             return True
         except ValueError:
             return False
+
+    def sendTx (self, receiever, amount):
+        msg = ("send", self.get_public_key(), time.gmtime(), receiever, amount)
+        # print(msg)
+        return self.signedMsg(msg)
+
+    def addTx (self, newVoters):
+        msg = ("add", self.get_public_key(), time.gmtime(), newVoters)
+        return self.signedMsg(msg)
+
+    # Y:yes N:no A:abstain
+    def respondTx (self, index, response):
+        msg = ("respond", self.get_public_key(), time.gmtime(), response, index)
+        return self.signedMsg(msg)
 
 def test ():
     myPot = Pot()

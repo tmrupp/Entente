@@ -34,21 +34,24 @@ class Pot ():
         except ValueError:
             return False
 
-    def sendTx (self, receiever, amount):
+    def sendTx (self, receiever : str, amount : float):
         msg = ("send", self.get_public_key(), time.gmtime(), receiever, amount)
         # print(msg)
         return self.signedMsg(msg)
 
-    def grantTx (self, newVoters):
+    def grantTx (self, newVoters : list):
         msg = ("grant", self.get_public_key(), time.gmtime(), newVoters)
         return self.signedMsg(msg)
 
     # Y:yes N:no A:abstain
-    def respondTx (self, index, response):
+    def respondTx (self, index : int, response : str):
         msg = ("respond", self.get_public_key(), time.gmtime(), response, index)
         return self.signedMsg(msg)
 
-    #modify op, self writing
+    def modifyTx (self, code : str):
+        msg = ("modify", self.get_public_key(), time.gmtime(), code)
+        return self.signedMsg(msg)
+
     #revoke op, remove voters
 
 def test ():

@@ -13,3 +13,31 @@ new_code = compile("def my_function(x):\n\treturn x + 32",  "", 'exec')
 eval(new_code)
 
 print (my_function(53))
+
+# class example:
+#     def exampler (self, x):
+#         return x + 1
+
+# def ec (code):
+
+code = """
+class example:  
+    def exampler (self, x):
+        return x + 1"""
+        
+eval(compile(code,  "", 'exec'))
+
+y = example()
+print(y.exampler(54))
+
+code = """
+class example:  
+    def exampler (self, x):
+        return x + 2"""
+
+eval(compile(code,  "", 'exec'))
+
+y = example()
+        
+print(y.exampler(54))
+

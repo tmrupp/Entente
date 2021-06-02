@@ -1,9 +1,15 @@
+from Crypto import Signature
 from BlockChain import *
 from Pot import Pot
 import time
 
 # starter, no anon
 # fixed cost of 1, eventually logistic curve
+
+RESPOP = "respond"
+GRNTOP = "grant"
+CALLOP = "call"
+MODOP = "modify"
 
 def verifyTxSignature (transaction):
     (msg, signature) = transaction
@@ -21,7 +27,193 @@ def verifyTxTime (transaction, chain):
         return False
     return True
 
+def costFunction (transaction):
+    (msg, signature) = transaction
+    op, sender, time, *rest = msg
+    return 0 if op == RESPOP else 1
+
 class Boule:
+    def __init__ (self, initialTx) -> None:
+        self.costFn = costFunction
+        self.ledger = BlockChain()
+        self.citizens = []
+        self.pots = {}
+
+        self.calls = {} # dict -> index : (dict -> citizen : response)
+        self.callIsPassed = {} # dict -> index : bool (is passed or rejected, None if unresolved)
+
+        self.processTx(initialTx)
+
+    def getBlock (self, index):
+        return self.ledger.chain[index]
+
+    def verifyRespond (self, Tx):
+        (msg, signature) = Tx
+        op, sender, time, resp, index = msg
+
+        if sender not in self.citizens:
+            print("not a valid citizen:", sender)
+            return False
+
+        # out of bounds
+        if index >= len(self.ledger.chain) or index < 0:
+            return False
+
+        # not a valid citizen
+        if sender not in self.calls[index]:
+            print("not a valid responder to this call, citizen:", sender)
+            return False
+
+        # already responded to this call
+        if self.calls[index][sender] != None:
+            print("already responded, citizen:", sender)
+            return False
+
+        target = self.getBlock(index)
+        (targetMsg, _) = target.tx
+        checkOp, *_ = targetMsg
+
+        if (checkOp == RESPOP):
+            print("cannot respond to a response")
+            return False
+
+        return True
+
+    def verifyGrant (self, Tx):
+        return True
+
+    verifyOperations = {
+        RESPOP : verifyRespond,
+        GRNTOP : verifyGrant
+    }
+
+    def passGrant (self, Tx):
+        (msg, signature) = Tx
+        op, sender, time, newVoters = msg
+        self.citizens.extend(newVoters)
+
+        for x in newVoters:
+            self.pots[x] = 1.0
+
+    passOperations = {
+        GRNTOP : passGrant
+    }
+
+    def respond (self, Tx):
+        (msg, signature) = Tx
+        op, sender, time, resp, index = msg
+
+        self.calls[index][sender] = resp
+        self.pots[sender] += 1.0
+
+        # actually can do something
+        if self.callIsPassed[index] == None:
+            if resp == "N":
+                self.callIsPassed[index] = False # unanimous
+            elif len([x for x in self.calls[index].values() if x is None or x == "N"]) == 0:
+                self.callIsPassed[index] = True
+                
+                target = self.getBlock(index)
+                (targetMsg, _) = target.tx
+                passOp, *_ = targetMsg
+                self.passOperations[passOp](self, target.tx)
+
+
+    def grant (self, Tx):
+        index = len(self.ledger.chain)
+        self.calls[index] = {}
+        self.callIsPassed[index] = None
+        for x in self.citizens:
+            self.calls[index][x] = None
+
+        # do the op if there is nobody
+        if len(self.citizens) == 0:
+            (msg, signature) = Tx
+            op, *rest = msg
+            self.callIsPassed[index] = True
+            self.passOperations[op](self, Tx)
+
+    operations = {
+        RESPOP : respond,
+        GRNTOP : grant
+    }
+
+    def verifyTxCost (self, sender, Tx):
+        if len(self.pots) == 0:
+            return True
+
+        return self.pots[sender] >= self.costFn(Tx)
+
+    def doCost (self, Tx):
+        (msg, signature) = Tx
+        op, sender, time, *rest = msg
+        if sender in self.pots:
+            self.pots[sender] -= self.costFn(Tx)
+
+    def doOp (self, Tx):
+        (msg, signature) = Tx
+        op, sender, time, *rest = msg
+        self.doCost(Tx)
+        self.operations[op](self, Tx)
+
+    def verifyOp (self, Tx):
+        (msg, signature) = Tx
+        op, sender, time, *rest = msg
+        return self.verifyOperations[op](self, Tx)
+
+    def processTx (self, Tx):
+        if (self.verifyTx(Tx)):
+            self.doOp(Tx)
+            self.ledger.addBlock(Block(Tx))
+            return True
+        else:
+            print ("rejected Tx")
+            return False
+
+    def verifyTx (self, Tx):
+        if not verifyTxSignature(Tx):
+            return False
+        
+        if not verifyTxTime(Tx, self.ledger):
+            return False
+
+        (msg, signature) = Tx
+        op, sender, time, *rest = msg
+
+        if not self.verifyTxCost(sender, Tx):
+            return False
+
+        if not self.verifyOp(Tx):
+            return False
+
+        return True
+
+    def potsStr (self):
+        s = "pots: \n{\n"
+        for pot in self.pots.items():
+            s = s + "\t" + str(pot) + "\n"
+        return s + "}"
+
+    def isPassedStr (self, index):
+        if self.callIsPassed[index] == True:
+            return "Passed"
+        elif self.callIsPassed[index] == False:
+            return "Failed"
+        else:
+            return "Unresolved"
+
+    def callsStr (self):
+        s = "calls: \n{\n"
+        for call in self.calls.items():
+            (index, _) = call
+            s = s + "\t" + str(call) + " " + self.isPassedStr(index) + "\n"
+        return s + "}"
+
+
+    def __str__(self) -> str:
+        return self.potsStr() + "\n" + self.callsStr()
+
+class BouleOld:
     def __init__ (self, initialTx):
         self.restart()
         self.cost = 1
@@ -249,20 +441,20 @@ def test ():
     for i in range(6):
         pots.append(Pot())
 
-    print("hi, pots=")
+    print("hi, pots=", pots)
 
-    boule = Boule(pots[0].addTx([pots[0].get_public_key()]))
+    boule = Boule(pots[0].grantTx([pots[0].get_public_key()]))
     
-    print (str(boule))
+    print (str(boule) + "\n")
 
-    Tx = pots[0].addTx([pots[1].get_public_key()])
-    boule.addAndProcessTx(Tx)
+    Tx = pots[0].grantTx([pots[1].get_public_key()])
+    boule.processTx(Tx)
 
-    print (str(boule))
+    print (str(boule) + "\n")
 
     Tx = pots[0].respondTx(1, "Y")
-    boule.addAndProcessTx(Tx)
+    boule.processTx(Tx)
 
-    print (str(boule))
+    print (str(boule) + "\n")
 
 test()

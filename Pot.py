@@ -39,14 +39,17 @@ class Pot ():
         # print(msg)
         return self.signedMsg(msg)
 
-    def addTx (self, newVoters):
-        msg = ("add", self.get_public_key(), time.gmtime(), newVoters)
+    def grantTx (self, newVoters):
+        msg = ("grant", self.get_public_key(), time.gmtime(), newVoters)
         return self.signedMsg(msg)
 
     # Y:yes N:no A:abstain
     def respondTx (self, index, response):
         msg = ("respond", self.get_public_key(), time.gmtime(), response, index)
         return self.signedMsg(msg)
+
+    #modify op, self writing
+    #revoke op, remove voters
 
 def test ():
     myPot = Pot()

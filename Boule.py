@@ -8,6 +8,7 @@ import time
 
 RESPOP = "respond"
 GRNTOP = "grant"
+SNDOP = "send"
 CALLOP = "call"
 MODOP = "modify"
 
@@ -32,6 +33,17 @@ def costFunction (transaction):
     op, sender, time, *rest = msg
     return 0 if op == RESPOP else 1
 
+"""
+    def verifyOp (self, Tx):
+        ???
+
+    def op (self, Tx):
+        ???
+
+    def passOp (self, Tx):
+        ???
+"""
+
 class Boule:
     def __init__ (self, initialTx) -> None:
         self.costFn = costFunction
@@ -46,6 +58,27 @@ class Boule:
 
     def getBlock (self, index):
         return self.ledger.chain[index]
+
+    def verifySend (self, Tx):
+        (msg, signature) = Tx
+        op, sender, time, reciever, amount = msg
+
+        if self.pots[sender] < (self.costFn(Tx) + amount):
+            print("sender:", sender, "has", self.pots[sender], "does not have enough Ostraka for the transation:", (self.costFn(Tx) + amount))
+            return False
+
+        return True
+
+    def send (self, Tx):
+        self.logCall(Tx)
+
+    def passSend (self, Tx):
+        (msg, signature) = Tx
+        op, sender, time, reciever, amount = msg
+
+        self.pots[sender] -= amount
+        self.pots[reciever] += amount
+
 
     def verifyRespond (self, Tx):
         (msg, signature) = Tx
@@ -84,7 +117,8 @@ class Boule:
 
     verifyOperations = {
         RESPOP : verifyRespond,
-        GRNTOP : verifyGrant
+        GRNTOP : verifyGrant,
+        SNDOP : verifySend
     }
 
     def passGrant (self, Tx):
@@ -96,7 +130,8 @@ class Boule:
             self.pots[x] = 1.0
 
     passOperations = {
-        GRNTOP : passGrant
+        GRNTOP : passGrant,
+        SNDOP : passSend
     }
 
     def respond (self, Tx):
@@ -118,8 +153,7 @@ class Boule:
                 passOp, *_ = targetMsg
                 self.passOperations[passOp](self, target.tx)
 
-
-    def grant (self, Tx):
+    def logCall (self, Tx):
         index = len(self.ledger.chain)
         self.calls[index] = {}
         self.callIsPassed[index] = None
@@ -133,9 +167,13 @@ class Boule:
             self.callIsPassed[index] = True
             self.passOperations[op](self, Tx)
 
+    def grant (self, Tx):
+        self.logCall(Tx)
+
     operations = {
         RESPOP : respond,
-        GRNTOP : grant
+        GRNTOP : grant,
+        SNDOP : send
     }
 
     def verifyTxCost (self, sender, Tx):
@@ -444,17 +482,40 @@ def test ():
     print("hi, pots=", pots)
 
     boule = Boule(pots[0].grantTx([pots[0].get_public_key()]))
-    
     print (str(boule) + "\n")
 
     Tx = pots[0].grantTx([pots[1].get_public_key()])
     boule.processTx(Tx)
-
     print (str(boule) + "\n")
 
     Tx = pots[0].respondTx(1, "Y")
     boule.processTx(Tx)
+    print (str(boule) + "\n")
 
+    Tx = pots[0].grantTx([pots[2].get_public_key(), pots[3].get_public_key()])
+    boule.processTx(Tx)
+    print (str(boule) + "\n")
+
+    Tx = pots[0].respondTx(3, "Y")
+    boule.processTx(Tx)
+    print (str(boule) + "\n")
+
+    Tx = pots[1].respondTx(3, "Y")
+    boule.processTx(Tx)
+    print (str(boule) + "\n")
+
+    Tx = pots[1].sendTx(pots[0].get_public_key(), 0.6)
+    boule.processTx(Tx)
+    print (str(boule) + "\n")
+
+    Tx = pots[0].respondTx(6, "Y")
+    boule.processTx(Tx)
+    Tx = pots[1].respondTx(6, "Y")
+    boule.processTx(Tx)
+    Tx = pots[2].respondTx(6, "Y")
+    boule.processTx(Tx)
+    Tx = pots[3].respondTx(6, "Y")
+    boule.processTx(Tx)
     print (str(boule) + "\n")
 
 test()

@@ -53,6 +53,11 @@ def newCostFunction (transaction):
     return 0 if op == RESPOP else 0.1
 
 self.costFn = newCostFunction
+
+def newMethod (self):
+    print("hey")
+
+Pot.nm = newMethod
 """)
     boule.processTx(Tx)
     # convert(boule)
@@ -71,5 +76,7 @@ self.costFn = newCostFunction
     Tx = pots[3].sendTx(pots[0].get_public_key(), 0.2)
     boule.processTx(Tx)
     print (str(boule) + "\n")
+
+    pots[1].nm()
 
 test()

@@ -22,10 +22,6 @@ from Crypto.Cipher import AES
 # message? (just a call with no effect?)
 # send (sends some token from a wallet to another wallet (pot??)) (acts like a call, i.e. has a cost)
 #   (..., reciever, amount)
-# dispute (dispute a vote, only happens when anonymous pub-priv keys are stolen by vote adder or by side channel)
-#   respond - prove that you have the original pub-priv key pair for a response
-#   add - prove that your pub key in the anon list doesn't correspond to a valid key pair
-# found? (creates a new forum/boule)
 
 # SETTINGS
 # quorum (how many valid voters must vote)

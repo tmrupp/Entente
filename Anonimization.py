@@ -48,10 +48,12 @@ print (decrypted_message)
 
 newKey = generate_key()
 secretBytes = [PrivVal(x) for x in newKey.secret]
-publicBytes = [PrivVal(x) for x in myKey.public_key.format(True)]
-allBytes = secretBytes + publicBytes
-allBytes = Array([secretBytes, publicBytes])
+publicBytes = [PrivVal(x) for x in newKey.public_key.format(True)]
+allBytes = newKey.secret + newKey.public_key.format(True)
+# allBytes = Array(allBytes)
 
+encrypted_key = AESEncryptWithETHKey(allBytes, myKey.public_key.format(True))
+# encrypted_bytes = [PrivVal(x) for x in encrypted_key.]
 
 
 @snark

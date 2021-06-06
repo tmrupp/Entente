@@ -5,9 +5,19 @@ from Crypto.Cipher import AES
 import time
 
 class Pot ():
-    def __init__ (self):
-        self.key = ECC.generate(curve='p256')
+    def export_key (self):
+        return self.key.export_key(format='PEM')
+
+    def import_key (self, imported_key):
+        self.key = ECC.import_key(imported_key)
         self.signer = DSS.new(self.key,'fips-186-3')
+        
+    def __init__ (self, imported_key=None):
+        if imported_key is None:
+            self.key = ECC.generate(curve='p256')
+            self.signer = DSS.new(self.key,'fips-186-3')
+        else:
+            self.import_key(imported_key)
 
     def __str__(self) -> str:
         return str(self.key)

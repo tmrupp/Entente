@@ -8,67 +8,45 @@ wd = os.path.abspath(os.getcwd())
 path = wd + "/OstrakaData"
 exists = os.path.isdir(path)
 
-newFldr = 'Create new data folder'
-diffFldr = 'Specify external data folder path'
-defaultFldr = 'Use existing default folder'
+diffFldr = 'Use external data folder'
+defaultFldr = 'Use default data folder'
 
 dataFldr = ''
-
-options = [
-    newFldr,
-    diffFldr,
-]
-
-if exists:
-    options.append(defaultFldr)
 
 questions = [
     {
         'type': 'list',
-        'name': 'data_method',
-        'message': 'Select data to load:',
-        'choices': options
+        'name': 'data_folder',
+        'message': 'Load Ostraka data:',
+        'choices': [diffFldr, defaultFldr]
     }
 ]
 
 answers = prompt(questions)
 
-if answers['data_method'] == newFldr:
-
-    newNewFldr = 'Specify new data folder path'
-    newDefaultFldr = 'Create folder at default location (./OstrakaData/)'
-
-    options = [newNewFldr]
-    if not exists:
-        options.append(newDefaultFldr)
-
+if answers['data_folder'] == diffFldr:
     questions = [
         {
-            'type': 'list',
-            'name': 'new_fldr_loc',
-            'message': 'Select where to create data folder:',
-            'choices': options
+            'type': 'input',
+            'name': 'external_path',
+            'message': 'Specify external path:'
         }
     ]
-    
+
     answers = prompt(questions)
-    newDataPath = './OstrakaData/'
-    if answers['new_fldr_loc'] == newNewFldr:
-        q = [{
-            'type' : 'input',
-            'name' : 'loc',
-            'message' : 'Input path to new data folder:'
-        }]
+    dataFldr = answers['external_path']
+else:
+    dataFldr = path
+    if not os.path.isdir(path):
+        print("Creating default folder")
+        os.mkdir(path)
 
-        answers = prompt(q)
 
-        newDataPath = answers['loc']
 
-    os.mkdir(newDataPath)
-    dataFldr = newDataPath
 
-elif answers['data_method'] == diffFldr:
+
+
+
     
-
-
-
+    
+    

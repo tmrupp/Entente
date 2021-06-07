@@ -1,6 +1,3 @@
-[submodule "python-p2p-network"]
-	path = python-p2p-network
-	url = https://github.com/macsnoeren/python-p2p-network.git
 [submodule "py-ipv8"]
 	path = pyipv8
 	url = https://github.com/Tribler/py-ipv8.git

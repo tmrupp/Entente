@@ -1,5 +1,8 @@
 import os
+import sys
 from asyncio import ensure_future, get_event_loop
+
+sys.path.append('../')
 
 from pyipv8.ipv8.community import Community
 from pyipv8.ipv8.configuration import ConfigBuilder, Strategy, WalkerDefinition, default_bootstrap_defs

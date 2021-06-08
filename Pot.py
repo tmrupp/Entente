@@ -1,8 +1,15 @@
+from pyipv8.ipv8.messaging.serialization import Serializable
 from Crypto.PublicKey import ECC
 from Crypto.Signature import DSS
 from Crypto.Hash import SHA256
 from Crypto.Cipher import AES
 import time
+from dill import dumps, loads
+
+# class Transaction (Serializable):
+
+#     def __init__ (self):
+
 
 class Pot ():
     def export_key (self):
@@ -22,7 +29,7 @@ class Pot ():
     def __str__(self) -> str:
         return str(self.key)
 
-    def sign (self, msg):
+    def sign (self, msg) -> bytes:
         h = SHA256.new(msg)
         return self.signer.sign(h)
 
@@ -69,12 +76,18 @@ def test ():
     yourPot = Pot()
     print(myPot)
 
-    message = b'hey how\'s it going'
+    # message = b'hey how\'s it going'
 
-    mySignature = myPot.sign(message)
-    print(mySignature)
+    # mySignature = myPot.sign(message)
+    # print(mySignature)
 
-    verified = Pot.verify_signature(myPot.get_public_key(), message, mySignature)
-    print(verified)
+    # verified = Pot.verify_signature(myPot.get_public_key(), message, mySignature)
+    # print(verified)
 
-# test()
+    Tx = myPot.sendTx(yourPot.get_public_key(), 34.65)
+    TxBytes = dumps(Tx)
+    print (TxBytes)
+
+
+
+test()

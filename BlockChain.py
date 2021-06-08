@@ -1,7 +1,7 @@
 from Crypto.Hash import SHA256
 
 class Block:
-    def __init__ (self, tx="let's fucking go"):
+    def __init__ (self, tx=""):
         self.prevHash = bytes()
         self.tx = tx # signature in msg
         self.index = 0

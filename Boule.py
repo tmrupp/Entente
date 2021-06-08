@@ -1,3 +1,4 @@
+from pyipv8.ipv8.messaging.serialization import Serializable
 from Crypto import Signature
 from BlockChain import *
 from Pot import Pot
@@ -44,7 +45,7 @@ def costFunction (transaction):
         ???
 """
 
-class Boule:
+class Boule ():
     def __init__ (self, initialTx) -> None:
         self.costFn = costFunction
         self.ledger = BlockChain()

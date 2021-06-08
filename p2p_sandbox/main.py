@@ -44,7 +44,7 @@ class MyCommunity(Community):
     @lazy_wrapper(MyMessage)
     def on_message(self, peer, payload):
         # Update our Lamport clock.
-        if (payload.msg_id == 2):
+        if (payload.msg_id == 1):
             print("good id")
 
         self.lamport_clock = max(self.lamport_clock, payload.clock) + 1

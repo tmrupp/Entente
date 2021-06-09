@@ -1,15 +1,31 @@
-from pyipv8.ipv8.messaging.serialization import Serializable
+from pyipv8.ipv8.messaging.serialization import Serializable, VarLen
+
 from Crypto.PublicKey import ECC
 from Crypto.Signature import DSS
 from Crypto.Hash import SHA256
 from Crypto.Cipher import AES
+
 import time
-from dill import dumps, loads
 
-# class Transaction (Serializable):
+import dill
 
-#     def __init__ (self):
+class Transaction (Serializable):
+    format_list = ["varlenI"]
 
+    def __init__ (self, name):
+        # self.op = ""
+        # self.sender = ""
+        # self.time = ""
+        # self.text = ""
+        # self.signature = ""
+        self.name = name
+
+    def to_pack_list(self):
+        return [("varlenI", self.name)]
+
+    @classmethod
+    def from_unpack_list(cls, *args) -> Serializable:  # pylint: disable=E0213
+        return cls(*args)
 
 class Pot ():
     def export_key (self):
@@ -84,9 +100,16 @@ def test ():
     # verified = Pot.verify_signature(myPot.get_public_key(), message, mySignature)
     # print(verified)
 
-    Tx = myPot.sendTx(yourPot.get_public_key(), 34.65)
-    TxBytes = dumps(Tx)
-    print (TxBytes)
+    # Tx = myPot.sendTx(yourPot.get_public_key(), 34.65)
+    # TxBytes = dumps(Tx)
+    # print (TxBytes)
+
+    t0 = Transaction("tombsdf")
+    t1 = Transaction.from_unpack_list(t0.to_pack_list())
+
+    print (t1)
+    print (t0)
+
 
 
 

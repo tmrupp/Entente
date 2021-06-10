@@ -7,26 +7,6 @@ from Crypto.Cipher import AES
 
 import time
 
-import dill
-
-class Transaction (Serializable):
-    format_list = ["varlenI"]
-
-    def __init__ (self, name):
-        # self.op = ""
-        # self.sender = ""
-        # self.time = ""
-        # self.text = ""
-        # self.signature = ""
-        self.name = name
-
-    def to_pack_list(self):
-        return [("varlenI", self.name)]
-
-    @classmethod
-    def from_unpack_list(cls, *args) -> Serializable:  # pylint: disable=E0213
-        return cls(*args)
-
 class Pot ():
     def export_key (self):
         return self.key.export_key(format='PEM')
@@ -53,7 +33,7 @@ class Pot ():
         return (msg, self.sign(str(msg).encode('utf8')))
 
     def get_public_key (self):
-        return self.key.public_key().export_key(format='PEM')
+        return self.key.public_key().export_key(format='DER') # DER is smaller than PEM
 
     def import_public_key (exported_key):
         return ECC.import_key(exported_key)
@@ -87,6 +67,23 @@ class Pot ():
 
     #revoke op, remove voters
 
+class Transaction (Serializable):
+    format_list = ['B', '91s', '121s', '']
+
+    def __init__ (self, op, sender: Pot, text):
+        self.op = op  # char?
+        self.sender = sender.get_public_key() # string of particular size
+        self.time = time.gmtime()
+        self.text = text # long string
+        # self.signature = ""
+
+    def to_pack_list(self):
+        return [("varlenI", self.name)]
+
+    @classmethod
+    def from_unpack_list(cls, *args) -> Serializable:  # pylint: disable=E0213
+        return cls(*args)
+
 def test ():
     myPot = Pot()
     yourPot = Pot()
@@ -104,11 +101,15 @@ def test ():
     # TxBytes = dumps(Tx)
     # print (TxBytes)
 
-    t0 = Transaction("tombsdf")
-    t1 = Transaction.from_unpack_list(t0.to_pack_list())
+    print (len(myPot.get_public_key()))
+    print (len(myPot.key.public_key().export_key(format='DER')))
+    print (len(str(time.gmtime())))
 
-    print (t1)
-    print (t0)
+    # t0 = Transaction("tombsdf")
+    # t1 = Transaction.from_unpack_list(t0.to_pack_list())
+
+    # print (t1)
+    # print (t0)
 
 
 

@@ -94,10 +94,7 @@ def getPot (dataFldr):
 
 # node = Node("127.0.0.1", 8001, None)
 
-def getIP ():
-    hostname = socket.gethostname()   
-    print(hostname)
-    return socket.gethostbyname(hostname) 
+
 
 def getBoule (dataFldr):
     boulesFldr = dataFldr + "/Boules/"

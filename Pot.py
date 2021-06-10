@@ -3,7 +3,7 @@ from pyipv8.ipv8.messaging.serialization import Serializable, VarLen
 from Crypto.PublicKey import ECC
 from Crypto.Signature import DSS
 from Crypto.Hash import SHA256
-from Crypto.Cipher import AES
+import typing
 
 import time
 
@@ -26,7 +26,7 @@ class Pot ():
         return str(self.key)
 
     def sign (self, msg) -> bytes:
-        h = SHA256.new(msg)
+        h = SHA256.new(str(msg).encode('utf8'))
         return self.signer.sign(h)
 
     def signedMsg (self, msg):
@@ -46,6 +46,11 @@ class Pot ():
             return True
         except ValueError:
             return False
+
+    def testTx (self, text):
+        tx = Transaction()
+        tx.compose('c', self, text)
+        return tx
 
     def sendTx (self, receiever : str, amount : float):
         msg = ("send", self.get_public_key(), time.gmtime(), receiever, amount)
@@ -68,17 +73,42 @@ class Pot ():
     #revoke op, remove voters
 
 class Transaction (Serializable):
-    format_list = ['B', '91s', '121s', '']
+    format_list = ['B', 'varlenI', 'varlenI', 'varlenI', 'varlenI']
 
-    def __init__ (self, op, sender: Pot, text):
+    def __init__ (self, op='', sender='', time='', text='', signature=''):
         self.op = op  # char?
-        self.sender = sender.get_public_key() # string of particular size
-        self.time = time.gmtime()
+        self.sender = sender
+        self.time = time
         self.text = text # long string
-        # self.signature = ""
+        self.signature = signature
 
-    def to_pack_list(self):
-        return [("varlenI", self.name)]
+    def compose (self, op, sender: Pot, text):
+        self.op = op  # char?
+        self.sender = sender.get_public_key() # string of 91 size
+        self.time = time.gmtime() # string of 121 size
+        self.text = text # long string
+        self.msg = (self.op, self.sender, self.time, self.text)
+        self.signature = sender.sign(self.msg) # string of 64 size
+
+    def to_pack_list (self) -> typing.List[tuple]:
+        return [
+            ('B', self.op),
+            ('varlenI', self.sender),
+            ('varlenI', self.time),
+            ('varlenI', self.text),
+            ('varlenI', self.signature),
+        ]
+
+    def __str__ (self):
+        s = ''
+        s = s + "op:" + str(self.op) + ' '
+        s = s + "sender:" + str(self.sender) + " "
+        s = s + "time:" + str(self.time) + " "
+        s = s + "text:" + str(self.text) + " "
+        s = s + "signature:" + str(self.signature) 
+
+        return s
+
 
     @classmethod
     def from_unpack_list(cls, *args) -> Serializable:  # pylint: disable=E0213
@@ -89,10 +119,10 @@ def test ():
     yourPot = Pot()
     print(myPot)
 
-    # message = b'hey how\'s it going'
+    message = b'hey how\'s it going'
 
-    # mySignature = myPot.sign(message)
-    # print(mySignature)
+    mySignature = myPot.sign(message)
+    print(len(mySignature))
 
     # verified = Pot.verify_signature(myPot.get_public_key(), message, mySignature)
     # print(verified)
@@ -104,6 +134,14 @@ def test ():
     print (len(myPot.get_public_key()))
     print (len(myPot.key.public_key().export_key(format='DER')))
     print (len(str(time.gmtime())))
+
+
+    myTx = myPot.testTx("hey how are u?")
+    print(myTx)
+    my_packed_tx = myTx.to_pack_list()
+    print(my_packed_tx)
+    newTx = Transaction.from_unpack_list(my_packed_tx)
+    print(newTx)
 
     # t0 = Transaction("tombsdf")
     # t1 = Transaction.from_unpack_list(t0.to_pack_list())

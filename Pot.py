@@ -1,9 +1,11 @@
-from pyipv8.ipv8.messaging.serialization import Serializable, VarLen
+from pyipv8.ipv8.messaging.serialization import Serializable, Serializer, VarLen
+from pyipv8.ipv8.messaging.lazy_payload import VariablePayload, vp_compile
 
 from Crypto.PublicKey import ECC
 from Crypto.Signature import DSS
 from Crypto.Hash import SHA256
 import typing
+import struct
 
 import time
 
@@ -48,9 +50,7 @@ class Pot ():
             return False
 
     def testTx (self, text):
-        tx = Transaction()
-        tx.compose('c', self, text)
-        return tx
+        return Transaction.compose(0, self, text)
 
     def sendTx (self, receiever : str, amount : float):
         msg = ("send", self.get_public_key(), time.gmtime(), receiever, amount)
@@ -75,37 +75,36 @@ class Pot ():
 class Transaction (Serializable):
     format_list = ['B', 'varlenI', 'varlenI', 'varlenI', 'varlenI']
 
-    def __init__ (self, op='', sender='', time='', text='', signature=''):
-        self.op = op  # char?
+    def __init__ (self, op, sender, time : str, text, signature):
+        self.op = op
         self.sender = sender
-        self.time = time
+        self.time = struct.unpack("d", time)[0]
         self.text = text # long string
         self.signature = signature
 
-    def compose (self, op, sender: Pot, text):
-        self.op = op  # char?
-        self.sender = sender.get_public_key() # string of 91 size
-        self.time = time.gmtime() # string of 121 size
-        self.text = text # long string
-        self.msg = (self.op, self.sender, self.time, self.text)
-        self.signature = sender.sign(self.msg) # string of 64 size
+    @classmethod
+    def compose (cls, op, sender: Pot, text):
+        t = time.time()
+        pk =  sender.get_public_key()
+        msg = (op, pk, t, text)
+        return cls(op, pk, struct.pack("d", t), text, sender.sign(msg))
 
     def to_pack_list (self) -> typing.List[tuple]:
         return [
             ('B', self.op),
             ('varlenI', self.sender),
-            ('varlenI', self.time),
-            ('varlenI', self.text),
+            ('varlenI', struct.pack("d", self.time)),
+            ('varlenI', bytes(self.text, 'utf-8')),
             ('varlenI', self.signature),
         ]
 
     def __str__ (self):
         s = ''
-        s = s + "op:" + str(self.op) + ' '
-        s = s + "sender:" + str(self.sender) + " "
-        s = s + "time:" + str(self.time) + " "
-        s = s + "text:" + str(self.text) + " "
-        s = s + "signature:" + str(self.signature) 
+        s = s + 'op:' + str(self.op) + ' '
+        s = s + 'sender:' + str(self.sender) + ' '
+        s = s + 'time:' + str(self.time) + ' '
+        s = s + 'text:' + str(self.text) + ' '
+        s = s + 'signature:' + str(self.signature) 
 
         return s
 
@@ -134,21 +133,16 @@ def test ():
     print (len(myPot.get_public_key()))
     print (len(myPot.key.public_key().export_key(format='DER')))
     print (len(str(time.gmtime())))
+    print (time.time())
 
 
     myTx = myPot.testTx("hey how are u?")
-    print(myTx)
-    my_packed_tx = myTx.to_pack_list()
-    print(my_packed_tx)
-    newTx = Transaction.from_unpack_list(my_packed_tx)
-    print(newTx)
 
-    # t0 = Transaction("tombsdf")
-    # t1 = Transaction.from_unpack_list(t0.to_pack_list())
-
-    # print (t1)
-    # print (t0)
-
+    serializer = Serializer()
+    myData = serializer.pack_serializable(myTx)
+    output, output2 = serializer.unpack_serializable(Transaction, myData)
+    print(output)
+    print(output2)
 
 
 

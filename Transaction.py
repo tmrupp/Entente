@@ -15,14 +15,25 @@ class Operation (Enum):
     MODIFY = auto()
     SEND = auto()
 
+def packTest (text):
+    return text
+
+def unpackTest (text):
+    return text
+
+# packOpText = {
+#     {Operation.TEST.value, packTest}
+# }
+
 class Transaction (Serializable):
+    msg_id = 0
     format_list = ['B', 'varlenI', 'varlenI', 'varlenI', 'varlenI']
 
     def __init__ (self, op : Operation, sender, time : str, text, signature):
         self.op = op
         self.sender = sender
         self.time = struct.unpack("d", time)[0]
-        self.text = text # long string
+        self.text = text
         self.signature = signature
 
     def to_pack_list (self) -> typing.List[tuple]:
@@ -39,10 +50,7 @@ class Transaction (Serializable):
         s = s + 'sender:' + str(self.sender) + ' '
         s = s + 'time:' + str(self.time) + ' '
         s = s + 'text:' + str(self.text) + ' '
-        s = s + 'signature:' + str(self.signature) 
-
-        return s
-
+        return 'signature:' + str(self.signature) 
 
     @classmethod
     def from_unpack_list(cls, *args) -> Serializable:  # pylint: disable=E0213

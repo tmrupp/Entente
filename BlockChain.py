@@ -1,6 +1,8 @@
+from pyipv8.ipv8.messaging.serialization import Serializable
 from Crypto.Hash import SHA256
+from Transaction import Transaction
 
-class Block:
+class Block ():
     def __init__ (self, tx=""):
         self.prevHash = bytes()
         self.tx = tx # signature in msg

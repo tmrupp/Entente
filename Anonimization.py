@@ -12,53 +12,22 @@ from Crypto.Cipher import AES
 from ecies.utils import generate_eth_key, generate_key
 from ecies import encrypt, decrypt
 
-p = random.randint(0,256)
-s = PrivVal(random.randint(0,256))
-
-# secp_k = generate_key()
-# sk_bytes = secp_k.secret  # bytes
-# pk_bytes = secp_k.public_key.format(True)  # bytes
-# decrypt(sk_bytes, encrypt(pk_bytes, data))
-
-# takes a message and returns an encrypted key and message encrypted by that key
-def AESEncryptWithETHKey (msg, pub):
-    key = os.urandom(16) # generate a random key... hopefully is secure
-    cipher = AES.new(key, AES.MODE_EAX)
-    ciphertext, tag = cipher.encrypt_and_digest(msg)
-    encryptedKey = encrypt(pub, key)
-    return (encryptedKey, (ciphertext, cipher.nonce, tag))
-
-# decrypts a message based on a private key
-def AESDecryptWithETHKey (msg, priv):
-    (encryptedKey, (ciphertext, nonce, tag)) = msg
-    key = decrypt(priv, encryptedKey)
-    cipher = AES.new(key, AES.MODE_EAX, nonce=nonce)
-    plaintext = cipher.decrypt(ciphertext)
-    try:
-        cipher.verify(tag)
-    except ValueError:
-        print("Key incorrect or message corrupted")
-    return plaintext
 
 myKey = generate_key()
-secret_message = b'hey how are ya'
-encrypted_message = AESEncryptWithETHKey(secret_message, myKey.public_key.format(True))
-decrypted_message = AESDecryptWithETHKey(encrypted_message, myKey.secret)
-print (decrypted_message)
-
 newKey = generate_key()
-secretBytes = [PrivVal(x) for x in newKey.secret]
-publicBytes = [PrivVal(x) for x in newKey.public_key.format(True)]
-allBytes = newKey.secret + newKey.public_key.format(True)
-# allBytes = Array(allBytes)
-
-encrypted_key = AESEncryptWithETHKey(allBytes, myKey.public_key.format(True))
-# encrypted_bytes = [PrivVal(x) for x in encrypted_key.]
-
+encryptedKey = encrypt(myKey.public_key.format(True), newKey.secret)
+newPublicKey = newKey.public_key
 
 @snark
-def analogousKey (p, pc, c, kb):
-    return p > pc
+def analogousKey (myPublicKey, privateInt, privateLength, encryptedNewKey, newPublicKey):
+    newSecretKey = privateInt.to_bytes(2, 'big')
+    statement0 = encryptedNewKey == encrypt(myPublicKey.format(True), newSecretKey)
+    data = os.urandom(16)
+    statement1 = data == (decrypt(newSecretKey, encrypt(newPublicKey.format(True), data)))
+    return statement0 and statement1
 
-print ("compare of secret", s, "< public", p, analogousKey(p, s, 0, myKey))
+
+privateInt = PrivVal(int.from_bytes(myKey.secret, "big"))
+privateLength = PrivVal(len(myKey.secret))
+print (analogousKey(myKey.public_key, privateInt, privateLength, encryptedKey, newKey.public_key))
 
